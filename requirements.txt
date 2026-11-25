@@ -1,0 +1,18 @@
+# 运行环境：Windows 10/11，Python 3.10.20
+# 参考解释器：E:\ANACONDA\envs\yolo_11\python.exe
+#
+# torch / torchvision 请按本机 CUDA 版本单独安装，不要用本文件覆盖：
+#   pip install torch==2.13.0 torchvision==0.28.0 --index-url https://download.pytorch.org/whl/cu130
+torch==2.13.0
+torchvision==0.28.0
+
+numpy==2.2.6
+fastapi==0.162.0
+uvicorn[standard]==0.54.0
+python-multipart==0.0.32
+pydantic==2.13.5
+pillow==12.3.0
+opencv-python==5.0.0
+scikit-learn==1.7.2
+scipy==1.15.3
+tqdm==4.70.1

@@ -1,0 +1,35 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ---- 数据集（自己按下方说明下载 MVTec AD 后放到对应目录）----
+cable/
+carpet/
+
+# ---- 模型权重与运行产物 ----
+models/
+runs/
+export/
+
+# ---- 存档与备份 ----
+_backup/
+_inspect/
+*.npz
+*.onnx
+*.engine
+*.trt
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log

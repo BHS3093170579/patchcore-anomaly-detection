@@ -1,0 +1,42 @@
+{
+  "task": "example",
+  "display_name": "示例任务",
+  "accent": "#2563eb",
+  "dataset_root": "data/example",
+  "train_good_dir": "data/example/train/good",
+  "test_dir": "data/example/test",
+  "gt_dir": "data/example/ground_truth",
+  "model_dir": "models/example",
+  "runs_dir": "runs/example",
+  "defect_classes": [],
+  "model": {
+    "backbone": "wide_resnet50_2",
+    "weights": "IMAGENET1K_V2",
+    "layers": [
+      "layer2",
+      "layer3"
+    ],
+    "input_size": 512,
+    "coreset_ratio": 0.004,
+    "projection_dim": 128,
+    "neighbors": 1,
+    "smoothing_sigma": 4.0,
+    "score_topk": 100,
+    "seed": 0
+  },
+  "train": {
+    "val_ratio": 0.1,
+    "seed": 0
+  },
+  "threshold": {
+    "image_score": 0.0,
+    "pixel_score": 0.0,
+    "calibrated_from": "not_calibrated",
+    "normal_quantile": 0.995,
+    "safety_margin": 1.0
+  },
+  "runtime": {
+    "host": "127.0.0.1",
+    "port": 8000
+  }
+}

@@ -1,0 +1,10 @@
+# 统一使用 LF，避免 Windows / Linux 交叉编辑产生换行符噪音
+* text=auto eol=lf
+
+# 二进制文件不做换行符转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.npz binary
+*.onnx binary
+*.engine binary

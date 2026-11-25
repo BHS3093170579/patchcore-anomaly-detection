@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>无监督缺陷检测系统</title>
+<link rel="stylesheet" href="/static/style.css?v=__V__" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12h4l2.5-7 4 14L16 12h5" />
+      </svg>
+    </div>
+    <div class="brand-text">
+      <strong>无监督缺陷检测</strong>
+      <span>PatchCore · 双任务独立模型</span>
+    </div>
+  </div>
+
+  <nav class="task-switch" id="taskSwitch" aria-label="检测任务切换">
+    <div class="task-switch-skeleton" id="taskSkeleton"></div>
+  </nav>
+
+  <div class="top-meta">
+    <span class="pill" id="modePill" title="当前输入源">图片</span>
+    <span class="pill pill-dot" id="modelPill"><i class="dot"></i>模型待加载</span>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- 左栏：输入与参数 -->
+  <aside class="col col-left">
+    <section class="card">
+      <div class="card-head">
+        <h2>输入源</h2>
+        <span class="hint" id="sourceHint">单张图片推理</span>
+      </div>
+      <div class="tabs" id="sourceTabs" role="tablist">
+        <button class="tab is-active" data-source="image" role="tab">图片</button>
+        <button class="tab" data-source="video" role="tab">视频</button>
+        <button class="tab" data-source="camera" role="tab">摄像头</button>
+      </div>
+
+      <div class="pane is-active" data-pane="image">
+        <label class="dropzone" id="imageDrop">
+          <input type="file" id="imageInput" accept="image/png,image/jpeg,image/bmp,image/webp" hidden />
+          <span class="drop-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 16V4m0 0L8 8m4-4 4 4" /><path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+            </svg>
+          </span>
+          <strong>拖拽图片到此处，或点击选择</strong>
+          <small>支持 PNG / JPG / BMP / WebP，单张 ≤ 20MB</small>
+        </label>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="imageClearBtn" type="button">清除图片</button>
+          <label class="check-inline" title="判定为异常时，把原图、热力图与掩码存到 runs/&lt;任务&gt;/anomalies/">
+            <input type="checkbox" id="saveAnomaly" checked />
+            <span>异常图存档</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="video">
+        <label class="dropzone compact" id="videoDrop">
+          <input type="file" id="videoInput" accept="video/*" hidden />
+          <strong>选择或拖入视频文件</strong>
+          <small>MP4 / AVI / MOV，按目标帧率抽帧推理</small>
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>目标帧率</span>
+            <input type="number" id="videoFps" value="3" min="0.5" max="30" step="0.5" />
+          </label>
+          <button class="btn btn-primary" id="videoStartBtn" type="button" disabled>开始分析</button>
+        </div>
+        <div class="progress" id="videoProgress" hidden>
+          <div class="progress-bar"><i id="videoBar" style="width:0%"></i></div>
+          <div class="progress-text" id="videoProgressText">等待开始</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="videoCancelBtn" type="button" hidden>取消分析</button>
+        </div>
+      </div>
+
+      <div class="pane" data-pane="camera">
+        <div class="camera-wrap">
+          <video id="camVideo" playsinline muted></video>
+          <div class="camera-empty" id="cameraEmpty">摄像头未启动</div>
+          <div class="camera-hud" id="cameraHud" hidden>
+            <span id="hudFps">-- fps</span>
+            <span id="hudLatency">-- ms</span>
+          </div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="camStartBtn" type="button">启动摄像头</button>
+          <button class="btn btn-ghost" id="camStopBtn" type="button" disabled>停止</button>
+        </div>
+        <p class="note">摄像头画面不离开本机：每帧在浏览器内截取，POST 到本机后端推理，返回叠加图与分数。</p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>判定阈值</h2>
+        <span class="hint">仅作用于当前任务</span>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>判定灵敏度</span>
+          <select id="sensitivity">
+            <option value="balanced">平衡（默认）</option>
+            <option value="high_recall">高召回（少漏检，误报略多）</option>
+          </select>
+        </label>
+        <div class="field sens-meta">
+          <span>该档离线实测</span>
+          <b id="sensMeta">—</b>
+        </div>
+      </div>
+      <div class="field-row">
+        <label class="field">
+          <span>图像异常分阈值</span>
+          <input type="number" id="thrImage" step="0.001" min="0" />
+        </label>
+        <label class="field">
+          <span>像素异常分阈值</span>
+          <input type="number" id="thrPixel" step="0.001" min="0" />
+        </label>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="thrApplyBtn" type="button">应用阈值</button>
+        <button class="btn btn-ghost" id="thrResetBtn" type="button">恢复配置值</button>
+      </div>
+      <p class="note" id="thrNote">阈值写入该任务自己的 threshold.json 与 configs/&lt;任务&gt;.json，另一任务不受影响。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>模型状态</h2>
+        <span class="pill pill-dot sm" id="modelStatePill"><i class="dot"></i>未知</span>
+      </div>
+      <dl class="kv" id="modelKv"></dl>
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="modelReloadBtn" type="button">重新加载模型</button>
+        <button class="btn btn-ghost" id="modelBuildBtn" type="button">后台重新建模</button>
+      </div>
+    </section>
+  </aside>
+
+  <!-- 中栏：预览与结果 -->
+  <section class="col col-center">
+    <section class="card viewer-card">
+      <div class="card-head">
+        <h2>检测画面</h2>
+        <div class="seg" id="viewToggle">
+          <button class="seg-btn is-active" data-view="overlay">叠加图</button>
+          <button class="seg-btn" data-view="original">原图</button>
+        </div>
+      </div>
+      <div class="viewer" id="viewer">
+        <div class="empty-state" id="viewerEmpty">
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9.5" r="1.5" /><path d="m21 15-5-5L5 20" />
+            </svg>
+          </div>
+          <strong>还没有检测画面</strong>
+          <span>上传图片、播放视频或启动摄像头后，这里会显示检测结果</span>
+        </div>
+        <img id="viewerImg" alt="检测画面" hidden />
+        <div class="viewer-badge" id="viewerBadge" hidden></div>
+        <div class="viewer-loading" id="viewerLoading" hidden><i class="spinner"></i><span>推理中…</span></div>
+      </div>
+      <div class="viewer-foot">
+        <span id="viewerMeta">—</span>
+        <span class="mono" id="viewerSize"></span>
+      </div>
+      <div class="frame-strip" id="frameStrip" hidden></div>
+    </section>
+
+    <section class="card result-card">
+      <div class="card-head">
+        <h2>判定结果</h2>
+        <span class="hint" id="resultTime">—</span>
+      </div>
+      <div class="result-top">
+        <div class="verdict" id="verdict">
+          <span class="verdict-label" id="verdictLabel">等待检测</span>
+          <span class="verdict-score"><b id="verdictScore">—</b><em id="verdictThr"></em></span>
+        </div>
+        <div class="metrics" id="metrics">
+          <div class="metric"><span>区域数</span><b id="mRegions">—</b></div>
+          <div class="metric"><span>耗时</span><b id="mLatency">—</b></div>
+          <div class="metric"><span>输入尺寸</span><b id="mInputSize">—</b></div>
+        </div>
+      </div>
+      <div class="region-head">
+        <h3>缺陷区域</h3>
+        <div class="region-filter" id="regionFilter" hidden>
+          <button class="chip is-active" data-filter="all">全部</button>
+          <button class="chip" data-filter="high">高分</button>
+          <button class="chip" data-filter="mid">中分</button>
+        </div>
+      </div>
+      <div class="region-list" id="regionList">
+        <div class="muted-line">暂无区域数据</div>
+      </div>
+      <p class="note">
+        类别来源：本系统为单类无监督模型，<b>不输出具体缺陷类型</b>；区域标签的“高/中/低”是按该任务像素异常分阈值分档的异常强度，不是人工配置的缺陷类别，也不是额外分类器的结果。
+      </p>
+    </section>
+  </section>
+
+  <!-- 右栏：历史与统计 -->
+  <aside class="col col-right">
+    <section class="card history-card">
+      <div class="card-head">
+        <h2>检测历史</h2>
+        <span class="hint" id="historyCount">0 条</span>
+      </div>
+      <div class="history-actions">
+        <button class="btn btn-ghost sm" id="exportCsvBtn" type="button">导出 CSV</button>
+        <button class="btn btn-ghost sm" id="exportJsonBtn" type="button">导出 JSON</button>
+        <button class="btn btn-ghost sm danger" id="clearBtn" type="button">清空</button>
+      </div>
+      <div class="history-list" id="historyList">
+        <div class="muted-line">暂无历史记录</div>
+      </div>
+    </section>
+
+    <section class="card stats-card">
+      <div class="card-head"><h2>本次会话统计</h2></div>
+      <dl class="kv" id="statsKv">
+        <div><dt>推理次数</dt><dd>0</dd></div>
+        <div><dt>异常次数</dt><dd>0</dd></div>
+        <div><dt>平均耗时</dt><dd>—</dd></div>
+        <div><dt>实时链路 FPS</dt><dd>—</dd></div>
+        <div><dt>端到端延迟</dt><dd>—</dd></div>
+      </dl>
+      <p class="note">延迟 = 浏览器发起请求到收到叠加图的时间，含 HTTP 传输、预处理、512×512 前向、最近邻检索、后处理与 JPEG 编码。</p>
+    </section>
+
+    <section class="card metrics-card">
+      <div class="card-head">
+        <h2>模型指标</h2>
+        <span class="hint" id="metricsHint">离线评估</span>
+      </div>
+      <div class="metric-grid" id="metricGrid">
+        <div class="muted-line">暂无评估数据</div>
+      </div>
+      <div class="class-list" id="classList" hidden></div>
+      <p class="note" id="metricsNote">指标来自测试集离线评估，只用于了解模型能力，不参与在线判定。</p>
+    </section>
+
+    <section class="card anomaly-card" id="anomalyCard">
+      <div class="card-head">
+        <h2>异常存档</h2>
+        <span class="hint" id="anomalyHint">0 张</span>
+      </div>
+      <div class="anomaly-grid" id="anomalyGrid">
+        <div class="muted-line">暂无存档</div>
+      </div>
+      <p class="note">判定为异常且勾选“异常图存档”时会自动落盘，最多保留 200 组。点击缩略图可在左侧画面查看。</p>
+    </section>
+  </aside>
+</main>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="/static/app.js?v=__V__"></script>
+</body>
+</html>
